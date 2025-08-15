@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include "pico/stdlib.h"
 #include "hardware/spi.h"
+#include "bitmap_data.h"
 #include "image_data.h"
 
 // ==== Pin definitions ====
@@ -132,8 +133,26 @@ void st7789_draw_bitmap(uint16_t x, uint16_t y, uint16_t w, uint16_t h, const ui
     st7789_select();
     st7789_dc_data();
     for (uint32_t i = 0; i < (uint32_t)w * h; i++) {
-        uint8_t full_data[2] = { data[i * 2], data[(i * 2) + 1] };
+        uint8_t data_0 = data[((w * h) - w + (int)((2 * i) / h) - (h * ((2 * i) % h)))];
+        uint8_t data_1 = data[((w * h) - w + (int)((2 * i + 1) / h) - (h * ((2 * i + 1) % h)))];
+        uint8_t full_data[2] = { data_0, data_1 };
         spi_write_blocking(spi0, full_data, 2);
+    }
+    st7789_deselect();
+}
+
+void st7789_draw_old_bitmap(uint16_t x, uint16_t y, uint16_t w, uint16_t h, const uint8_t *data) {
+    if ((x >= ST7789_WIDTH) || (y >= ST7789_HEIGHT)) return;
+    if ((x + w - 1) >= ST7789_WIDTH)  w = ST7789_WIDTH - x;
+    if ((y + h - 1) >= ST7789_HEIGHT) h = ST7789_HEIGHT - y;
+
+    st7789_set_addr_window(x, y, x + w - 1, y + h - 1);
+
+    st7789_select();
+    st7789_dc_data();
+    for (uint32_t i = 0; i < (uint32_t)w * h; i++) {
+        uint8_t full_data = data[((w * h) - w + (int)(i / h) - (h * (i % h)))];
+        spi_write_blocking(spi0, &full_data, 2);
     }
     st7789_deselect();
 }
@@ -154,9 +173,16 @@ int main() {
     st7789_fill_rect(110,100,100,40,RGB565(0,63,0));    // GRN
     st7789_fill_rect(110,60,100,40,RGB565(0,0,31));     // BLU
     sleep_ms(200);
+    // Fill black
     st7789_fill_screen(RGB565(0,0,0));
     sleep_ms(100);
-
+    // Draw Mario
+    st7789_draw_old_bitmap(0, 0, BMP_WIDTH, BMP_HEIGHT, bitmap_data);
+    sleep_ms(2000);
+    // Fill black
+    st7789_fill_screen(RGB565(0,0,0));
+    sleep_ms(100);
+    // Draw Sans
     st7789_draw_bitmap(0, 0, IMG_WIDTH, IMG_HEIGHT, image_data);
 
     while (1) tight_loop_contents();
